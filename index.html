@@ -13,11 +13,17 @@
         <span class="brand-icon" aria-hidden="true">⛅</span>
         <h1 class="brand-name">WeatherWise</h1>
       </div>
-      <div class="location">
-        <span class="location-pin" aria-hidden="true">📍</span>
-        <div class="location-text">
-          <span class="location-city">Seattle, WA</span>
-          <span class="location-sub">7-Day Forecast</span>
+      <div class="header-actions">
+        <div class="location">
+          <span class="location-pin" aria-hidden="true">📍</span>
+          <div class="location-text">
+            <span class="location-city">Seattle, WA</span>
+            <span class="location-sub">7-Day Forecast</span>
+          </div>
+        </div>
+        <div class="unit-toggle" role="tablist" aria-label="Temperature unit">
+          <button type="button" class="unit-btn is-active" data-unit="fahrenheit" aria-pressed="true">°F</button>
+          <button type="button" class="unit-btn" data-unit="celsius" aria-pressed="false">°C</button>
         </div>
       </div>
     </header>

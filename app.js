@@ -8,6 +8,11 @@ const SEATTLE = {
   longitude: -122.3321,
 };
 
+const state = {
+  unit: "fahrenheit",
+  days: [],
+};
+
 // Maps Open-Meteo WMO weather codes to an emoji icon and description.
 const WEATHER_CODES = {
   0: { icon: "☀️", desc: "Clear sky" },
@@ -82,14 +87,25 @@ async function fetchForecast() {
     throw new Error(`Weather service returned ${response.status}`);
   }
   const data = await response.json();
-  const daily = data.daily;
-  return daily.time.map((date, i) => ({
-    date,
-    code: daily.weather_code[i],
-    high: Math.round(daily.temperature_2m_max[i]),
-    low: Math.round(daily.temperature_2m_min[i]),
-    sunset: daily.sunset[i],
-  }));
+  const daily = data.daily || {};
+  const times = daily.time || [];
+  const codes = daily.weather_code || [];
+  const highs = daily.temperature_2m_max || [];
+  const lows = daily.temperature_2m_min || [];
+  const sunsets = daily.sunset || [];
+  return times.map((date, i) => {
+    const rawHigh = Number(highs[i]);
+    const rawLow = Number(lows[i]);
+    const code = Number(codes[i]);
+    return {
+      date,
+      code: Number.isFinite(code) ? code : null,
+      // Preserve raw numeric values from the API (don't round here).
+      high: Number.isFinite(rawHigh) ? rawHigh : null,
+      low: Number.isFinite(rawLow) ? rawLow : null,
+      sunset: sunsets[i] || null,
+    };
+  });
 }
 
 // Sample fallback so the page always shows a 7-day forecast for the demo.
@@ -124,6 +140,22 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function convertTemperature(value, unit) {
+  if (unit === "celsius") {
+    return ((value - 32) * 5) / 9;
+  }
+  return value;
+}
+
+function formatTemperature(value, unit) {
+  // Render a graceful placeholder when the source value isn't a finite number.
+  if (!Number.isFinite(value)) return "—";
+  const converted = convertTemperature(value, unit);
+  if (!Number.isFinite(converted)) return "—";
+  const rounded = Math.round(converted);
+  return `${rounded}°${unit === "celsius" ? "C" : "F"}`;
+}
+
 function renderForecast(days) {
   const container = document.getElementById("forecast");
   container.innerHTML = "";
@@ -132,14 +164,16 @@ function renderForecast(days) {
     const info = codeInfo(day.code);
     const card = document.createElement("article");
     card.className = "day-card" + (index === 0 ? " is-today" : "");
+    const high = formatTemperature(day.high, state.unit);
+    const low = formatTemperature(day.low, state.unit);
     card.innerHTML = `
       <div class="day-name">${formatDayName(day.date, index)}</div>
       <div class="day-date">${formatDate(day.date)}</div>
       <div class="day-icon" aria-hidden="true">${info.icon}</div>
       <div class="day-desc">${info.desc}</div>
       <div class="day-temps">
-        <span class="temp-high">${day.high}°</span>
-        <span class="temp-low">${day.low}°</span>
+        <span class="temp-high">${high}</span>
+        <span class="temp-low">${low}</span>
       </div>
     `;
     container.appendChild(card);
@@ -185,9 +219,30 @@ function setUpdatedLabel(usingSample) {
     `Updated ${now} · ${source}`;
 }
 
+function updateUnitButtons() {
+  const buttons = document.querySelectorAll(".unit-btn");
+  buttons.forEach((button) => {
+    const selected = button.dataset.unit === state.unit;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+}
+
+function handleUnitToggle(event) {
+  const button = event.currentTarget;
+  const nextUnit = button.dataset.unit;
+  if (!nextUnit || nextUnit === state.unit) {
+    return;
+  }
+  state.unit = nextUnit;
+  updateUnitButtons();
+  renderForecast(state.days);
+}
+
 async function init() {
   try {
     const days = await fetchForecast();
+    state.days = days;
     renderForecast(days);
     renderSunsetTimes(days);
     setStatus("");
@@ -195,11 +250,17 @@ async function init() {
   } catch (err) {
     console.warn("Falling back to sample forecast:", err);
     const days = sampleForecast();
+    state.days = days;
     renderForecast(days);
     renderSunsetTimes(days);
     setStatus("Showing sample data — live forecast is unavailable.", true);
     setUpdatedLabel(true);
   }
+
+  updateUnitButtons();
+  document.querySelectorAll(".unit-btn").forEach((button) => {
+    button.addEventListener("click", handleUnitToggle);
+  });
 }
 
 document.addEventListener("DOMContentLoaded", init);
